@@ -1,0 +1,51 @@
+# Go build outputs
+/bin/
+/dist/
+/out/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.a
+*.o
+
+# Go tooling and caches
+/pkg/
+/vendor/
+/coverage.out
+/coverage/
+/profile.out
+/cpu.out
+/mem.out
+/trace.out
+/go.work.sum
+/.go/
+
+# Logs and temp
+*.log
+*.tmp
+*.swp
+*.swo
+*.swn
+*.bak
+*.old
+*.orig
+
+# Environment files
+.env
+.env.*
+
+# IDEs and editors
+.idea/
+.vscode/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Agent instructions
+AGENTS.md

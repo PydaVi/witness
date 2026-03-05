@@ -98,7 +98,6 @@ Acompanhe o progresso pelas branches e pelo histórico de commits — cada vers�
 
 - [`docs/arquitetura.md`](docs/arquitetura.md) — decisões de design e tradeoffs
 - [`docs/narrative-mode.md`](docs/narrative-mode.md) — a ideia central do projeto
-- [`AGENTS.md`](AGENTS.md) — contexto e regras para o agente de IA usado no desenvolvimento
 
 ---
 
