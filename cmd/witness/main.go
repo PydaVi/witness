@@ -10,6 +10,7 @@ import (
 	"witness/internal/config"
 	"witness/internal/http1"
 	"witness/internal/listener"
+	"witness/internal/router"
 )
 
 const defaultConfigPath = "configs/dev.yaml"
@@ -29,6 +30,8 @@ func main() {
 
 	// Nesta etapa, apenas aceitamos conexoes e logamos o remoto.
 	// A partir da proxima etapa, vamos parsear HTTP e encaminhar.
+	r := router.New(cfg.Routes)
+
 	handler := func(conn net.Conn) {
 		defer func() {
 			if err := conn.Close(); err != nil {
@@ -46,7 +49,13 @@ func main() {
 		}
 
 		host := req.Headers["host"]
-		log.Printf("request: remote=%s method=%s path=%s host=%s", remote.String(), req.Method, req.Path, host)
+		upstream, err := r.Match(host, req.Path)
+		if err != nil {
+			log.Printf("route not found: remote=%s host=%s path=%s err=%v", remote.String(), host, req.Path, err)
+			return
+		}
+
+		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s", remote.String(), req.Method, req.Path, host, upstream)
 	}
 
 	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
