@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"log"
 	"net"
 	"os"
 
 	"witness/internal/config"
+	"witness/internal/http1"
 	"witness/internal/listener"
 )
 
@@ -35,7 +37,16 @@ func main() {
 		}()
 
 		remote := conn.RemoteAddr()
-		log.Printf("accepted connection: remote=%s", remote.String())
+		reader := bufio.NewReader(conn)
+
+		req, err := http1.ParseRequest(reader)
+		if err != nil {
+			log.Printf("parse request error: remote=%s err=%v", remote.String(), err)
+			return
+		}
+
+		host := req.Headers["host"]
+		log.Printf("request: remote=%s method=%s path=%s host=%s", remote.String(), req.Method, req.Path, host)
 	}
 
 	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
