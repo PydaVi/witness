@@ -1,0 +1,14 @@
+listener:
+  addr: "0.0.0.0:8080"
+  backlog: 128
+
+upstreams:
+  - name: app
+    targets:
+      - "127.0.0.1:9001"
+      - "127.0.0.1:9002"
+
+routes:
+  - host: "example.local"
+    path_prefix: "/"
+    upstream: "app"
