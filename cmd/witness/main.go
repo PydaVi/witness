@@ -2,11 +2,12 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
+	"net"
 	"os"
 
 	"witness/internal/config"
+	"witness/internal/listener"
 )
 
 const defaultConfigPath = "configs/dev.yaml"
@@ -21,11 +22,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Neste ponto so validamos a configuracao.
-	// O listener e o proxy virão nas proximas etapas.
-	fmt.Printf("config loaded: listener=%s upstreams=%d routes=%d\n",
-		cfg.Listener.Addr,
-		len(cfg.Upstreams),
-		len(cfg.Routes),
-	)
+	log.Printf("config loaded: listener=%s upstreams=%d routes=%d",
+		cfg.Listener.Addr, len(cfg.Upstreams), len(cfg.Routes))
+
+	// Nesta etapa, apenas aceitamos conexoes e logamos o remoto.
+	// A partir da proxima etapa, vamos parsear HTTP e encaminhar.
+	handler := func(conn net.Conn) {
+		defer func() {
+			if err := conn.Close(); err != nil {
+				log.Printf("close connection: %v", err)
+			}
+		}()
+
+		remote := conn.RemoteAddr()
+		log.Printf("accepted connection: remote=%s", remote.String())
+	}
+
+	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
+		log.Printf("listener error: %v", err)
+		os.Exit(1)
+	}
 }
