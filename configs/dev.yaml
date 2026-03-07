@@ -8,7 +8,16 @@ upstreams:
       - "127.0.0.1:9001"
       - "127.0.0.1:9002"
 
+  - name: itaquera
+    targets:
+      - "127.0.0.1:9003"
+      - "127.0.0.1:9004"
+
 routes:
+  - host: "example.local"
+    path_prefix: "/corinthians"
+    upstream: "itaquera"
+
   - host: "example.local"
     path_prefix: "/"
     upstream: "app"
