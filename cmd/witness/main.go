@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 
+	"witness/internal/balancer"
 	"witness/internal/config"
 	"witness/internal/http1"
 	"witness/internal/listener"
@@ -28,8 +29,16 @@ func main() {
 	log.Printf("config loaded: listener=%s upstreams=%d routes=%d",
 		cfg.Listener.Addr, len(cfg.Upstreams), len(cfg.Routes))
 
-	// Nesta etapa, apenas aceitamos conexoes e logamos o remoto.
-	// A partir da proxima etapa, vamos parsear HTTP e encaminhar.
+	balancers := make(map[string]*balancer.RoundRobin, len(cfg.Upstreams))
+	for _, upstream := range cfg.Upstreams {
+		rr, err := balancer.NewRoundRobin(upstream.Targets)
+		if err != nil {
+			log.Printf("balancer error: upstream=%s err=%v", upstream.Name, err)
+			os.Exit(1)
+		}
+		balancers[upstream.Name] = rr
+	}
+
 	r := router.New(cfg.Routes)
 
 	handler := func(conn net.Conn) {
@@ -55,7 +64,15 @@ func main() {
 			return
 		}
 
-		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s", remote.String(), req.Method, req.Path, host, upstream)
+		rr, ok := balancers[upstream]
+		if !ok {
+			log.Printf("balancer not found: remote=%s upstream=%s", remote.String(), upstream)
+			return
+		}
+
+		target := rr.Next()
+		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s target=%s",
+			remote.String(), req.Method, req.Path, host, upstream, target)
 	}
 
 	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
