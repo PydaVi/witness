@@ -6,11 +6,13 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"witness/internal/balancer"
 	"witness/internal/config"
 	"witness/internal/http1"
 	"witness/internal/listener"
+	"witness/internal/proxy"
 	"witness/internal/router"
 )
 
@@ -40,6 +42,7 @@ func main() {
 	}
 
 	r := router.New(cfg.Routes)
+	p := &proxy.Proxy{DialTimeout: 2 * time.Second}
 
 	handler := func(conn net.Conn) {
 		defer func() {
@@ -71,6 +74,12 @@ func main() {
 		}
 
 		target := rr.Next()
+
+		if err := p.Forward(conn, target, req); err != nil {
+			log.Printf("proxy error: remote=%s target=%s err=%v", remote.String(), target, err)
+			return
+		}
+
 		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s target=%s",
 			remote.String(), req.Method, req.Path, host, upstream, target)
 	}
