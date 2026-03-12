@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -10,15 +11,48 @@ import (
 // Config e o modelo raiz de configuracao.
 // Mantemos tudo em structs para validar cedo e tornar a configuracao explicita.
 type Config struct {
-	Listener  ListenerConfig  `yaml:"listener"`
-	Upstreams []Upstream      `yaml:"upstreams"`
-	Routes    []Route         `yaml:"routes"`
+	Listener  ListenerConfig `yaml:"listener"`
+	Upstreams []Upstream     `yaml:"upstreams"`
+	Routes    []Route        `yaml:"routes"`
+	Timeouts  TimeoutsConfig `yaml:"timeouts"`
 }
 
 // ListenerConfig descreve onde o proxy vai escutar conexoes TCP.
 type ListenerConfig struct {
 	Addr    string `yaml:"addr"`
 	Backlog int    `yaml:"backlog"`
+}
+
+// Duration e um wrapper didatico para time.Duration com parsing via YAML.
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalYAML interpreta duracoes no formato "200ms", "2s", "1m".
+func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return fmt.Errorf("duration value is missing")
+	}
+	if value.Kind != yaml.ScalarNode {
+		return fmt.Errorf("duration must be a scalar, got kind=%d", value.Kind)
+	}
+	if value.Value == "" {
+		return fmt.Errorf("duration is empty")
+	}
+
+	parsed, err := time.ParseDuration(value.Value)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", value.Value, err)
+	}
+	d.Duration = parsed
+	return nil
+}
+
+// TimeoutsConfig define limites de tempo basicos por etapa.
+type TimeoutsConfig struct {
+	Connect Duration `yaml:"connect"`
+	Read    Duration `yaml:"read"`
+	Write   Duration `yaml:"write"`
 }
 
 // Upstream representa um conjunto de targets que recebem trafego.
@@ -99,6 +133,16 @@ func (c *Config) Validate() error {
 		if _, exists := upstreamByName[route.Upstream]; !exists {
 			return fmt.Errorf("routes[%d].upstream %q does not exist", i, route.Upstream)
 		}
+	}
+
+	if c.Timeouts.Connect.Duration <= 0 {
+		return fmt.Errorf("timeouts.connect must be > 0")
+	}
+	if c.Timeouts.Read.Duration <= 0 {
+		return fmt.Errorf("timeouts.read must be > 0")
+	}
+	if c.Timeouts.Write.Duration <= 0 {
+		return fmt.Errorf("timeouts.write must be > 0")
 	}
 
 	return nil

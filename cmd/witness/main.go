@@ -42,7 +42,11 @@ func main() {
 	}
 
 	r := router.New(cfg.Routes)
-	p := &proxy.Proxy{DialTimeout: 2 * time.Second}
+	p := &proxy.Proxy{
+		DialTimeout:  cfg.Timeouts.Connect.Duration,
+		ReadTimeout:  cfg.Timeouts.Read.Duration,
+		WriteTimeout: cfg.Timeouts.Write.Duration,
+	}
 
 	handler := func(conn net.Conn) {
 		defer func() {
@@ -53,6 +57,13 @@ func main() {
 
 		remote := conn.RemoteAddr()
 		reader := bufio.NewReader(conn)
+
+		if cfg.Timeouts.Read.Duration > 0 {
+			if err := conn.SetReadDeadline(time.Now().Add(cfg.Timeouts.Read.Duration)); err != nil {
+				log.Printf("set client read deadline: remote=%s err=%v", remote.String(), err)
+				return
+			}
+		}
 
 		req, err := http1.ParseRequest(reader)
 		if err != nil {

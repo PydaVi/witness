@@ -15,7 +15,9 @@ import (
 // Proxy implementa o encaminhamento minimo de uma request para um backend.
 // Nesta etapa nao suportamos body; apenas request line + headers.
 type Proxy struct {
-	DialTimeout time.Duration
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
 }
 
 // Forward conecta ao backend, envia a request e encaminha a resposta ao cliente.
@@ -33,11 +35,27 @@ func (p *Proxy) Forward(client net.Conn, target string, req *http1.Request) erro
 	}()
 
 	backendWriter := bufio.NewWriter(backend)
+	if p.WriteTimeout > 0 {
+		if err := backend.SetWriteDeadline(time.Now().Add(p.WriteTimeout)); err != nil {
+			return fmt.Errorf("set backend write deadline: %w", err)
+		}
+	}
 	if err := writeRequest(backendWriter, req); err != nil {
 		return fmt.Errorf("write request to backend %s: %w", target, err)
 	}
 	if err := backendWriter.Flush(); err != nil {
 		return fmt.Errorf("flush request to backend %s: %w", target, err)
+	}
+
+	if p.ReadTimeout > 0 {
+		if err := backend.SetReadDeadline(time.Now().Add(p.ReadTimeout)); err != nil {
+			return fmt.Errorf("set backend read deadline: %w", err)
+		}
+	}
+	if p.WriteTimeout > 0 {
+		if err := client.SetWriteDeadline(time.Now().Add(p.WriteTimeout)); err != nil {
+			return fmt.Errorf("set client write deadline: %w", err)
+		}
 	}
 
 	if _, err := io.Copy(client, backend); err != nil {
