@@ -101,6 +101,28 @@ Acompanhe o progresso pelas branches e pelo histórico de commits — cada vers�
 
 ---
 
+## Como testar (v0.1)
+
+Suba dois backends simples:
+
+```bash
+docker compose up -d
+```
+
+Rode o witness:
+
+```bash
+go run ./cmd/witness
+```
+
+Teste o round-robin:
+
+```bash
+for i in $(seq 1 4); do curl -H "Host: example.local" http://127.0.0.1:8082/; done
+```
+
+---
+
 ## Conceitos explorados
 
 À medida que o projeto avança, cada parte do código conecta a um conceito de sistemas ou redes:

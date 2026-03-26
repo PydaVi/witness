@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  backend1:
+    image: hashicorp/http-echo:0.2.3
+    command: ["-listen=:9001", "-text=backend-1"]
+    ports:
+      - "9001:9001"
+
+  backend2:
+    image: hashicorp/http-echo:0.2.3
+    command: ["-listen=:9002", "-text=backend-2"]
+    ports:
+      - "9002:9002"
