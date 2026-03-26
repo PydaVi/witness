@@ -49,6 +49,7 @@ func main() {
 	}
 
 	handler := func(conn net.Conn) {
+		start := time.Now()
 		defer func() {
 			if err := conn.Close(); err != nil {
 				log.Printf("close connection: %v", err)
@@ -67,14 +68,17 @@ func main() {
 
 		req, err := http1.ParseRequest(reader)
 		if err != nil {
-			log.Printf("parse request error: remote=%s err=%v", remote.String(), err)
+			latency := time.Since(start).Milliseconds()
+			log.Printf("request error: remote=%s latency_ms=%d err=%v", remote.String(), latency, err)
 			return
 		}
 
 		host := req.Headers["host"]
 		upstream, err := r.Match(host, req.Path)
 		if err != nil {
-			log.Printf("route not found: remote=%s host=%s path=%s err=%v", remote.String(), host, req.Path, err)
+			latency := time.Since(start).Milliseconds()
+			log.Printf("route not found: remote=%s host=%s path=%s latency_ms=%d err=%v",
+				remote.String(), host, req.Path, latency, err)
 			return
 		}
 
@@ -87,12 +91,15 @@ func main() {
 		target := rr.Next()
 
 		if err := p.Forward(conn, target, req); err != nil {
-			log.Printf("proxy error: remote=%s target=%s err=%v", remote.String(), target, err)
+			latency := time.Since(start).Milliseconds()
+			log.Printf("proxy error: remote=%s method=%s path=%s host=%s upstream=%s target=%s latency_ms=%d err=%v",
+				remote.String(), req.Method, req.Path, host, upstream, target, latency, err)
 			return
 		}
 
-		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s target=%s",
-			remote.String(), req.Method, req.Path, host, upstream, target)
+		latency := time.Since(start).Milliseconds()
+		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s target=%s latency_ms=%d",
+			remote.String(), req.Method, req.Path, host, upstream, target, latency)
 	}
 
 	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
