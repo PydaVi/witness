@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"witness/internal/config"
 	"witness/internal/http1"
 	"witness/internal/listener"
+	"witness/internal/logging"
 	"witness/internal/proxy"
 	"witness/internal/router"
 )
@@ -24,18 +25,23 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Printf("config error: %v", err)
+		slog.Error("config error", "err", err)
 		os.Exit(1)
 	}
 
-	log.Printf("config loaded: listener=%s upstreams=%d routes=%d",
-		cfg.Listener.Addr, len(cfg.Upstreams), len(cfg.Routes))
+	logger := logging.New()
+
+	logger.Info("config loaded",
+		"listener", cfg.Listener.Addr,
+		"upstreams", len(cfg.Upstreams),
+		"routes", len(cfg.Routes),
+	)
 
 	balancers := make(map[string]*balancer.RoundRobin, len(cfg.Upstreams))
 	for _, upstream := range cfg.Upstreams {
 		rr, err := balancer.NewRoundRobin(upstream.Targets)
 		if err != nil {
-			log.Printf("balancer error: upstream=%s err=%v", upstream.Name, err)
+			logger.Error("balancer error", "upstream", upstream.Name, "err", err)
 			os.Exit(1)
 		}
 		balancers[upstream.Name] = rr
@@ -52,7 +58,7 @@ func main() {
 		start := time.Now()
 		defer func() {
 			if err := conn.Close(); err != nil {
-				log.Printf("close connection: %v", err)
+				logger.Error("close connection", "err", err)
 			}
 		}()
 
@@ -61,7 +67,7 @@ func main() {
 
 		if cfg.Timeouts.Read.Duration > 0 {
 			if err := conn.SetReadDeadline(time.Now().Add(cfg.Timeouts.Read.Duration)); err != nil {
-				log.Printf("set client read deadline: remote=%s err=%v", remote.String(), err)
+				logger.Error("set client read deadline", "remote", remote.String(), "err", err)
 				return
 			}
 		}
@@ -69,7 +75,11 @@ func main() {
 		req, err := http1.ParseRequest(reader)
 		if err != nil {
 			latency := time.Since(start).Milliseconds()
-			log.Printf("request error: remote=%s latency_ms=%d err=%v", remote.String(), latency, err)
+			logger.Error("request error",
+				"remote", remote.String(),
+				"latency_ms", latency,
+				"err", err,
+			)
 			return
 		}
 
@@ -77,14 +87,19 @@ func main() {
 		upstream, err := r.Match(host, req.Path)
 		if err != nil {
 			latency := time.Since(start).Milliseconds()
-			log.Printf("route not found: remote=%s host=%s path=%s latency_ms=%d err=%v",
-				remote.String(), host, req.Path, latency, err)
+			logger.Error("route not found",
+				"remote", remote.String(),
+				"host", host,
+				"path", req.Path,
+				"latency_ms", latency,
+				"err", err,
+			)
 			return
 		}
 
 		rr, ok := balancers[upstream]
 		if !ok {
-			log.Printf("balancer not found: remote=%s upstream=%s", remote.String(), upstream)
+			logger.Error("balancer not found", "remote", remote.String(), "upstream", upstream)
 			return
 		}
 
@@ -92,18 +107,33 @@ func main() {
 
 		if err := p.Forward(conn, target, req); err != nil {
 			latency := time.Since(start).Milliseconds()
-			log.Printf("proxy error: remote=%s method=%s path=%s host=%s upstream=%s target=%s latency_ms=%d err=%v",
-				remote.String(), req.Method, req.Path, host, upstream, target, latency, err)
+			logger.Error("proxy error",
+				"remote", remote.String(),
+				"method", req.Method,
+				"path", req.Path,
+				"host", host,
+				"upstream", upstream,
+				"target", target,
+				"latency_ms", latency,
+				"err", err,
+			)
 			return
 		}
 
 		latency := time.Since(start).Milliseconds()
-		log.Printf("request: remote=%s method=%s path=%s host=%s upstream=%s target=%s latency_ms=%d",
-			remote.String(), req.Method, req.Path, host, upstream, target, latency)
+		logger.Info("request",
+			"remote", remote.String(),
+			"method", req.Method,
+			"path", req.Path,
+			"host", host,
+			"upstream", upstream,
+			"target", target,
+			"latency_ms", latency,
+		)
 	}
 
 	if err := listener.ListenAndServe(cfg.Listener.Addr, cfg.Listener.Backlog, handler); err != nil {
-		log.Printf("listener error: %v", err)
+		logger.Error("listener error", "err", err)
 		os.Exit(1)
 	}
 }
